@@ -41,8 +41,8 @@ import org.eclipse.birt.report.engine.api.ITOCTree;
 import org.eclipse.birt.report.engine.api.TOCNode;
 import org.eclipse.birt.report.engine.api.script.IReportContext;
 import org.eclipse.birt.report.engine.content.IBandContent;
+import org.eclipse.birt.report.engine.content.ICellContent;
 import org.eclipse.birt.report.engine.content.IReportContent;
-import org.eclipse.birt.report.engine.content.impl.CellContent;
 import org.eclipse.birt.report.engine.content.impl.RowContent;
 import org.eclipse.birt.report.engine.i18n.EngineResourceHandle;
 import org.eclipse.birt.report.engine.i18n.MessageConstants;
@@ -1570,19 +1570,29 @@ public class PDFPageDevice implements IPageDevice {
 							}
 						}
 					} else {
-						structureCurrentNode = container.getFirstPart().getStructureElement();
-						PdfName restored = structureCurrentNode.getAsName(PdfName.S);
-						if (PdfName.TABLE.equals(restored)) {
-							// Also restore the table section, e.g. TBody.
-							// K may be a single PdfDictionary (first page) or a PdfArray
-							// (subsequent pages). Handle both cases.
-							PdfArray children = structureCurrentNode.getAsArray(PdfName.K);
-							if (children != null && children.size() > 0) {
-								structureCurrentNode = (PdfStructureElement) children.getAsDict(children.size() - 1);
-							} else {
-								PdfObject singleChild = structureCurrentNode.get(PdfName.K);
-								if (singleChild instanceof PdfStructureElement) {
-									structureCurrentNode = (PdfStructureElement) singleChild;
+						PdfStructureElement firstPartElement = container.getFirstPart() == null ? null :
+							container.getFirstPart().getStructureElement();
+						if (firstPartElement == null) {
+							if (PdfTag.TR.equals(tagType)) {
+								beforeOpenTableSectionTag(container);
+							}
+							PdfStructureElement created = safeCreateStructureElement(structureCurrentNode, new PdfName(tagType));
+							if (created != null) {
+								structureCurrentNode = created;
+							}
+						} else {
+							structureCurrentNode = firstPartElement;
+							PdfName restored = structureCurrentNode.getAsName(PdfName.S);
+							if (PdfName.TABLE.equals(restored)) {
+								PdfArray children = structureCurrentNode.getAsArray(PdfName.K);
+								if (children != null && children.size() > 0) {
+									structureCurrentNode = (PdfStructureElement) children
+											.getAsDict(children.size() - 1);
+								} else {
+									PdfObject singleChild = structureCurrentNode.get(PdfName.K);
+									if (singleChild instanceof PdfStructureElement) {
+										structureCurrentNode = (PdfStructureElement) singleChild;
+									}
 								}
 							}
 						}
@@ -1695,15 +1705,17 @@ public class PDFPageDevice implements IPageDevice {
 	private void addTableCellAttributes(String tagType, IArea area) {
 		if (area instanceof CellArea) {
 			CellArea cellArea = (CellArea) area;
-			int rowspan = cellArea.getRowSpan();
-			int colspan = cellArea.getColSpan();
-			String scope = ((CellContent) (cellArea.getContent())).getScope();
+			// A row/col span can never be less than 1 in a valid PDF/UA table structure.
+			// but guard against writing an invalid attribute.
+			int rowspan = Math.max(1, cellArea.getRowSpan());
+			int colspan = Math.max(1, cellArea.getColSpan());
+			String scope = ((ICellContent) (cellArea.getContent())).getScope();
 			String bookmark = cellArea.getBookmark();
 			if (bookmark != null) {
 				structureCurrentNode.put(PdfName.ID, new PdfString(bookmark));
 			}
 
-			String headers = ((CellContent) (cellArea.getContent())).getHeaders();
+			String headers = ((ICellContent) (cellArea.getContent())).getHeaders();
 			if (rowspan != 1 || colspan != 1 || scope != null || headers != null) {
 				PdfDictionary attributes = structureCurrentNode.getAsDict(PdfName.A);
 				if (attributes == null) {

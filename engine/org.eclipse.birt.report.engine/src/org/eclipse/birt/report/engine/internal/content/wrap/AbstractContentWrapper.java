@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2004,2009 Actuate Corporation.
+ * Copyright (c) 2004,2026 Actuate Corporation.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License 2.0 which is available at
@@ -577,19 +577,17 @@ abstract public class AbstractContentWrapper extends AbstractElement implements 
 		content.setExtensions(properties);
 	}
 
-	private String tagType = null;
-
 	/**
 	 * @return Returns the tagType.
 	 */
 	public String getTagType() {
-		return tagType;
+		return content.getTagType();
 	}
 
 	/**
 	 * @param tagType The tagType to set.
 	 */
 	public void setTagType(String tagType) {
-		this.tagType = tagType;
+		content.setTagType(tagType);
 	}
 }
